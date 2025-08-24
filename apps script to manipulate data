@@ -1,0 +1,206 @@
+// this function evaluarUsuarios() has a trigger based time to execute it every one minute
+
+function evaluarUsuarios() {
+  try {
+    enviarDatosFiltrados();
+  } catch (e) {
+    Logger.log("Error en enviarDatosFiltrados: " + e.message);
+  }
+
+  try {
+    marcarDoneSiExisteEnEvaluacion();
+  } catch (e) {
+    Logger.log("Error en marcarDoneSiExisteEnEvaluacion: " + e.message);
+  }
+}
+
+
+// esta función envía los datos de la hoja registro a la hoja personas que alimenta el storage de Bigquery
+function enviarDatosFiltrados() {
+  const ssOrigen = SpreadsheetApp.getActiveSpreadsheet();
+  const hojaOrigen = ssOrigen.getSheetByName('registro');
+  const dataOrigen = hojaOrigen.getDataRange().getValues(); 
+  
+  const ssDestino = SpreadsheetApp.openById(''); 
+  const hojaDestino = ssDestino.getSheetByName('personas');
+
+  const datosEnviar = [];
+  const filasParaActualizar = [];
+
+  for (let i = 1; i < dataOrigen.length; i++) {
+    const fila = dataOrigen[i];
+    const colB = fila[1];
+    const colC = fila[2];
+    const colD = fila[3];
+    const colE = fila[4];
+    const colF = fila[5];
+    const colG = fila[6];
+    const colH = fila[7];
+    const colJ = fila[9];
+
+    if (colJ !== '' && colH === '') {
+      const intJ = parseInt(colJ, 10);
+
+      let fechaFormateada = '';
+      if (colG instanceof Date) {
+        fechaFormateada = Utilities.formatDate(colG, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      } else if (typeof colG === 'string' && colG.trim() !== '') {
+        const fechaParseada = new Date(colG);
+        if (!isNaN(fechaParseada)) {
+          fechaFormateada = Utilities.formatDate(fechaParseada, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+        }
+      }
+
+      datosEnviar.push([
+        intJ,    
+        colB,    
+        colC,    
+        colF,    
+        '',      
+        '',      
+        fechaFormateada, 
+        '', '',  
+        colE,    
+        colD     
+      ]);
+
+      filasParaActualizar.push(i + 1); // Guardamos número de fila real (i+1 porque empieza en 0 y hay encabezado)
+    }
+  }
+
+  if (datosEnviar.length > 0) {
+    hojaDestino
+      .getRange(hojaDestino.getLastRow() + 1, 1, datosEnviar.length, datosEnviar[0].length)
+      .setValues(datosEnviar);
+
+    // Marcar como "done" en la columna H para las filas enviadas
+    filasParaActualizar.forEach(row => {
+      hojaOrigen.getRange(row, 8).setValue('done'); // Columna H = 8
+    });
+  }
+}
+
+// esta función evalúa si el usuario registrado ya tiene una evaluación física 
+function marcarDoneSiExisteEnEvaluacion() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const hojaRegistro = ss.getSheetByName('registro');
+  const hojaEvaluacion = ss.getSheetByName('evaluacion_fisica');
+  
+  const dataRegistro = hojaRegistro.getDataRange().getValues(); 
+  const dataEvaluacion = hojaEvaluacion.getDataRange().getValues(); 
+  
+  // Crear un Set con los IDs de evaluacion_fisica (columna B, saltando encabezado)
+  const idsEvaluacion = new Set(dataEvaluacion.slice(1).map(f => f[1])); // índice 1 = columna B
+  
+  // Recorremos registro desde la fila 2 (índice 1)
+  for (let i = 1; i < dataRegistro.length; i++) {
+    const fila = dataRegistro[i];
+    const idRegistro = fila[9]; // columna J índice 9
+    const colI = fila[8]; // columna I índice 8
+    
+    if (idRegistro !== '' && idsEvaluacion.has(idRegistro) && colI === '') {
+      hojaRegistro.getRange(i + 1, 9).setValue('done'); 
+      // i+1 porque getRange es 1-based y la fila 1 son encabezados
+      // 9 porque columna I = índice 8 + 1
+    }
+  }
+}
+
+// this function send data to main container if the user already has an evaluation 
+// this function procesarEvaluacionesFisicas() has a trigger based time every five minutes 
+function procesarEvaluacionesFisicas() {
+  const ssOrigen = SpreadsheetApp.getActiveSpreadsheet();
+  const hojaEval = ssOrigen.getSheetByName('evaluacion_fisica');
+  const dataEval = hojaEval.getDataRange().getValues(); // Incluye encabezados
+  const headersEval = dataEval.shift(); // quitar encabezado
+
+  const COL_B_ID = 1;       // B = id_persona
+  const COL_C = 2;          // C
+  const COL_D = 3;          // D
+  const COL_E = 4;          // E
+  const COL_F = 5;          // F
+  const COL_G = 6;          // G
+  const COL_H = 7;          // H
+  const COL_I = 8;          // I
+  const COL_J = 9;          // J
+  const COL_K = 10;         // K
+  const COL_L_FECHA = 11;   // L = fecha/hora
+  const COL_M_DONE = 12;    // M = flag done
+
+  const ssDestino = SpreadsheetApp.openById('');
+  const hojaPersonas = ssDestino.getSheetByName('personas');
+  const hojaEvaluaciones = ssDestino.getSheetByName('evaluaciones_fisicas');
+
+  const personasData = hojaPersonas.getDataRange().getValues();
+  const evaluacionesData = hojaEvaluaciones.getDataRange().getValues();
+
+  // Obtener último ID usado en evaluaciones_fisicas (col A) y empezar desde 101 si no hay datos
+  let lastId = evaluacionesData.length > 1
+    ? Math.max(...evaluacionesData.slice(1).map(r => r[0] || 100))
+    : 100;
+
+  const updatesEval = [];       
+  const newEvaluaciones = [];   
+
+  dataEval.forEach((row, idx) => {
+    const idPersona = row[COL_B_ID];
+    const doneFlag = row[COL_M_DONE];
+
+    // Condición: B no vacío y M vacío
+    if (!idPersona || doneFlag) return;
+
+    // --- Actualizar PERSONAS si existe el id en col A ---
+    const personaIdx = personasData.findIndex(r => String(r[0]) === String(idPersona));
+    if (personaIdx !== -1) {
+      // Mapeo: C -> E (idx 4), D -> F (idx 5), G -> H (idx 7), K -> I (idx 8)
+      personasData[personaIdx][4] = row[COL_C]; // E <- C
+      personasData[personaIdx][5] = row[COL_D]; // F <- D
+      personasData[personaIdx][7] = row[COL_G]; // H <- G
+      personasData[personaIdx][8] = row[COL_K]; // I <- K
+    }
+
+    // --- Preparar nueva fila para EVALUACIONES_FISICAS ---
+    const fechaOriginal = row[COL_L_FECHA];
+    let fechaFormateada = '';
+    if (fechaOriginal instanceof Date) {
+      fechaFormateada = Utilities.formatDate(fechaOriginal, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    } else if (typeof fechaOriginal === 'string' && fechaOriginal.trim() !== '') {
+      const fechaParseada = new Date(fechaOriginal);
+      if (!isNaN(fechaParseada)) {
+        fechaFormateada = Utilities.formatDate(fechaParseada, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+      }
+    }
+
+    lastId++;
+    newEvaluaciones.push([
+      lastId,              // A: id incremental
+      idPersona,           // B: id_persona
+      fechaFormateada,     // C: fecha (yyyy-MM-dd)  <<< CORREGIDO
+      row[COL_E],          // D <- E
+      row[COL_F],          // E <- F
+      row[COL_H],          // F <- H
+      row[COL_I],          // G <- I
+      row[COL_J]           // H <- J
+    ]);
+
+    // Guardar fila real a marcar como done en M (sumar 2: quitamos encabezado y base 1)
+    updatesEval.push(idx + 2);
+  });
+
+  // --- Aplicar actualizaciones ---
+  // Actualizar hoja PERSONAS completa solo si hubo cambios (evita inconsistencias)
+  if (newEvaluaciones.length > 0) {
+    hojaPersonas.getRange(1, 1, personasData.length, personasData[0].length).setValues(personasData);
+  }
+
+  if (newEvaluaciones.length > 0) {
+    hojaEvaluaciones
+      .getRange(hojaEvaluaciones.getLastRow() + 1, 1, newEvaluaciones.length, newEvaluaciones[0].length)
+      .setValues(newEvaluaciones);
+  }
+
+  // Marcar 'done' en columna M de evaluacion_fisica para filas procesadas
+  if (updatesEval.length > 0) {
+    updatesEval.forEach(rowNum => hojaEval.getRange(rowNum, COL_M_DONE + 1).setValue('done'));
+  }
+}
