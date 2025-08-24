@@ -1,0 +1,150 @@
+/** CONFIGURACIÓN **/
+const SPREADSHEET_ID = SpreadsheetApp.getActiveSpreadsheet().getId(); 
+const SHEET_REGISTRO = 'registro';
+const SHEET_EVAL = 'evaluacion_fisica';
+const TZ = 'America/Bogota';
+
+/** RUTAS **/
+function doGet() {
+  return HtmlService.createHtmlOutputFromFile('Index')
+    .setTitle('Prototype Gym')
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+/** UTILIDADES **/
+function nowBogota() {
+  return Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd HH:mm:ss');
+}
+
+function getSheet_(name) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sh = ss.getSheetByName(name);
+  if (!sh) throw new Error(`No existe la hoja: ${name}`);
+  return sh;
+}
+
+function getNextRecord_(sheet) {
+  const lastRow = sheet.getLastRow();
+  const count = Math.max(0, lastRow - 1); 
+  return count + 1;
+}
+
+function getNextIdPersona_() {
+  const sh = getSheet_(SHEET_REGISTRO);
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return 101; // primer ID
+  const values = sh.getRange(2, 10, lastRow - 1, 1).getValues(); // col J = 10
+  // Buscar máximo numérico en J
+  const nums = values
+    .map(r => Number(r[0]))
+    .filter(v => !isNaN(v) && v > 0);
+  const maxVal = nums.length ? Math.max.apply(null, nums) : 100;
+  return maxVal + 1;
+}
+
+/** API: Cargar opciones de usuarios habilitados para evaluación
+ *  Requisitos:
+ *  - Columna I vacía (reservada)
+ *  - id_persona en J no vacío
+ */
+function getEligibleUsers() {
+  const sh = getSheet_(SHEET_REGISTRO);
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  const range = sh.getRange(2, 1, lastRow - 1, 10).getValues(); // A..J
+  const out = [];
+  range.forEach(row => {
+    const nombre = String(row[1] || '').trim();   // B
+    const apellido = String(row[2] || '').trim(); // C
+    const reservedI = String(row[8] || '').trim();// I 
+    const idPersona = String(row[9] || '').trim();// J
+    if (nombre && apellido && !reservedI && idPersona) {
+      out.push({
+        id_persona: idPersona,
+        display: `${nombre} ${apellido}`
+      });
+    }
+  });
+  // Orden alfabético por display
+  out.sort((a,b)=> a.display.localeCompare(b.display, 'es'));
+  return out;
+}
+
+/** API: Crear usuario (hoja registro) */
+function submitUser(payload) {
+  const { nombre, apellido, correo, ocupacion, sexo } = payload || {};
+  if (!nombre || !apellido || !correo || !ocupacion || !sexo) {
+    throw new Error('Faltan campos obligatorios.');
+  }
+
+  const sh = getSheet_(SHEET_REGISTRO);
+  const record = getNextRecord_(sh);
+  const idPersona = getNextIdPersona_();
+  const fecha = nowBogota();
+
+  const row = [
+    record,              // A record
+    nombre,              // B nombre (ya limpio en frontend)
+    apellido,            // C apellido (ya limpio)
+    correo,              // D correo
+    ocupacion,           // E ocupacion (<= 50 chars en frontend)
+    sexo,                // F sexo
+    fecha,               // G fecha_creacion
+    '',                  // H processed (vacío)
+    '',                  // I reservado (vacío)
+    idPersona            // J id_persona
+  ];
+  sh.appendRow(row);
+
+  return { ok: true, record, id_persona: idPersona, fecha };
+}
+
+/** API: Registrar evaluación física (hoja evaluacion_fisica) */
+function submitEval(payload) {
+  const {
+    id_persona,
+    altura_cm,
+    peso_kg,
+    objetivo,
+    antecedentes_salud,
+    nivel_entrenamiento,
+    tiempo_entrenamiento,
+    tipo_metabolico,
+    frecuencia_entrenamiento
+  } = payload || {};
+
+  if (!id_persona) throw new Error('Falta id_persona.');
+  const h = Number(altura_cm);
+  const p = Number(peso_kg);
+  if (!h || !p) throw new Error('Altura y peso deben ser números.');
+  if (!objetivo || !antecedentes_salud || !nivel_entrenamiento || !tipo_metabolico) {
+    throw new Error('Faltan campos seleccionables.');
+  }
+
+  const sh = getSheet_(SHEET_EVAL);
+  const record = getNextRecord_(sh);
+  const fecha = nowBogota();
+
+  // IMC = peso (kg) / (altura(m))^2
+  const altura_m = h / 100.0;
+  const imc = +(p / (altura_m * altura_m)).toFixed(2);
+
+  const row = [
+    record,                 // A record
+    id_persona,             // B id_persona
+    h,                      // C altura_cm
+    p,                      // D peso_kg
+    objetivo,               // E objetivo
+    antecedentes_salud,     // F antecedentes_salud
+    nivel_entrenamiento,    // G nivel_entrenamiento
+    Number(tiempo_entrenamiento), // H tiempo_entrenamiento
+    tipo_metabolico,        // I tipo_metabolico
+    imc,                    // J imc
+    Number(frecuencia_entrenamiento), // K frecuencia_entrenamiento
+    fecha,                  // L fecha_registro
+    ''                      // M processed (vacío)
+  ];
+  sh.appendRow(row);
+
+  return { ok: true, record, imc, fecha };
+}
