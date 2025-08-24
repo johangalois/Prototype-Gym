@@ -1,0 +1,182 @@
+function enviarRutinasDelDía() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const zonaHoraria = Session.getScriptTimeZone();
+  const hoy = Utilities.formatDate(new Date(), zonaHoraria, 'yyyy-MM-dd');
+  const diaSemana = Utilities.formatDate(new Date(), zonaHoraria, 'EEEE');
+  const diasMap = {
+  'Monday': 'Lunes',
+  'Tuesday': 'Martes',
+  'Wednesday': 'Miércoles',
+  'Thursday': 'Jueves',
+  'Friday': 'Viernes',
+  'Saturday': 'Sábado',
+  'Sunday': 'Domingo',
+};
+  const diaSemanaEsp = diasMap[diaSemana];
+
+
+
+
+  const personas = getSheetData(ss, 'personas');
+  const rutinas = getSheetData(ss, 'rutinas');
+  const detalleRutina = getSheetData(ss, 'detalle_rutina');
+  const ejercicios = getSheetData(ss, 'ejercicios');
+  const maquinas = getSheetData(ss, 'maquinas');
+
+  const personasMap = new Map(personas.map(p => [p[0], { nombre: p[1], email: p[10] }]));
+  const ejerciciosMap = new Map(ejercicios.map(e => [e[0], {
+    nombre: e[1], id_maquina: e[5], url: e[6]
+  }]));
+  const maquinasMap = new Map(maquinas.map(m => [m[5], { nombre: m[1], url: m[4] }]));
+
+  rutinas.forEach(rutina => {
+    const [id_rutina, id_persona, , , , , fecha_inicio, fecha_fin] = rutina;
+    if (!personasMap.has(id_persona)) return;
+
+    const fechaHoy = new Date(hoy);
+    if (new Date(fecha_inicio) > fechaHoy || new Date(fecha_fin) < fechaHoy) return;
+
+    const user = personasMap.get(id_persona);
+    const ejerciciosUsuario = detalleRutina.filter(dr => 
+      dr[1] === id_rutina && dr[2] === diaSemanaEsp
+    ).map(dr => {
+      const ejercicio = ejerciciosMap.get(dr[3]);
+      const maquina = maquinasMap.get(ejercicio?.id_maquina);
+      return {
+        maquina: maquina ? `<a href="${maquina.url}" target="_blank">${maquina.nombre}</a>` : 'N/A',
+        ejercicio: ejercicio ? `<a href="${ejercicio.url}" target="_blank">${ejercicio.nombre}</a>` : 'N/A',
+        series: dr[4], repeticiones: dr[5], peso: dr[6], descanso: dr[7]
+      };
+    });
+
+    if (ejerciciosUsuario.length === 0) return;
+
+    const tablaEjercicios = ejerciciosUsuario.map(e => `
+      <tr>
+        <td>${e.maquina}</td>
+        <td>${e.ejercicio}</td>
+        <td>${e.series}</td>
+        <td>${e.repeticiones}</td>
+        <td>${e.peso}</td>
+        <td>${e.descanso}</td>
+      </tr>
+    `).join('');
+
+    const emojiFuerza = '💪';
+    const asuntoOriginal = `Tu rutina de hoy en Prototype Gym ${emojiFuerza}`;
+    const asuntoCodificado = codificarAsuntoUTF8(asuntoOriginal);
+    const html = generarCorreoHTML(user.nombre, tablaEjercicios);
+    GmailApp.sendEmail(user.email, asuntoCodificado, '', { htmlBody: html });
+
+    
+    //GmailApp.sendEmail(user.email, asunto, '', { htmlBody: html });
+  });
+}
+
+function getSheetData(ss, sheetName) {
+  const sheet = ss.getSheetByName(sheetName);
+  return sheet.getDataRange().getValues().slice(1); // Sin encabezados
+}
+
+
+function generarCorreoHTML(nombre, cuerpoTabla) {
+  return `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <meta charset="UTF-8">
+    <style>
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        color: #333;
+        background-color: #f8f9fa;
+        padding: 20px;
+      }
+      h2 {
+        color: #d62828;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+        background-color: #ffffff;
+        box-shadow: 0 0 10px rgba(0,0,0,0.05);
+      }
+      th, td {
+        text-align: left;
+        padding: 12px 15px;
+        border-bottom: 1px solid #dddddd;
+      }
+      th {
+        background-color: #f1f1f1;
+        color: #222;
+      }
+      a {
+        color: #007bff;
+        text-decoration: none;
+      }
+      .footer {
+        margin-top: 30px;
+        font-size: 14px;
+        color: #666;
+        text-align: center;
+      }
+      .progress {
+        background-color: #e9ecef;
+        border-radius: 8px;
+        overflow: hidden;
+        margin: 10px 0;
+      }
+      .progress-bar {
+        background-color: #198754;
+        height: 20px;
+        width: 70%;
+        color: white;
+        text-align: center;
+        line-height: 20px;
+        font-size: 12px;
+      }
+    </style>
+  </head>
+  <body>
+
+    <h2>Hola ${nombre} &#128075;</h2>
+    <p>Tu rutina de hoy en <strong>Prototype Gym</strong> está lista. A continuación, encontrarás los ejercicios programados para tu día. ¡Vamos con toda! &#128165;</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Máquina</th>
+          <th>Ejercicio</th>
+          <th>Series</th>
+          <th>Repeticiones</th>
+          <th>Peso estimado</th>
+          <th>Descanso</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${cuerpoTabla}
+      </tbody>
+    </table>
+
+    <h3>&#128198; Progreso de tu programa</h3>
+    <p>¡Ya has completado el 70% de tu rutina de entrenamiento de 6 semanas!</p>
+    <div class="progress">
+      <div class="progress-bar">70%</div>
+    </div>
+
+    <div class="footer">
+      <p>¡Sigue así, estás más cerca de lograr tus objetivos! &#128175;</p>
+      <p><strong>Prototype Gym</strong> — Transformamos tu esfuerzo en resultados.</p>
+      <p><a href="https://prototype-gym.com" target="_blank">Visítanos</a> | <a href="mailto:contacto@prototype-gym.com">Contáctanos</a></p>
+    </div>
+
+  </body>
+  </html>`;
+}
+
+function codificarAsuntoUTF8(asunto) {
+  const bytes = Utilities.newBlob(asunto).getBytes();
+  const base64 = Utilities.base64Encode(bytes);
+  return `=?UTF-8?B?${base64}?=`;
+}
