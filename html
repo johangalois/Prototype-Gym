@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, maximum-scale=1"
+  />
+  <title>Prototype Gym</title>
+
+  <!-- Fuente Montserrat -->
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --celeste: #4FC3F7;
+      --azul: #0288D1;
+      --naranja: #FF7043;
+      --gris: #757575;
+      --bg: #FFFFFF;
+      --ok: #2e7d32;
+    }
+    *{ box-sizing: border-box; }
+    html, body{
+      margin:0; padding:0; background:var(--bg); color:#0d0f12;
+      font-family: "Montserrat", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+
+    header{
+      padding: 24px 16px;
+      display: flex; align-items: center; justify-content: center; flex-direction: column;
+      gap: 6px;
+      border-bottom: 3px solid rgba(0,0,0,0.04);
+    }
+    .brand{
+      font-weight: 800; font-size: clamp(28px, 5vw, 40px); letter-spacing: 0.5px;
+      display: inline-flex; align-items: center; gap: 8px;
+    }
+    .brand .prototype{ color: var(--celeste); }
+    .brand .gym{ color: var(--azul); }
+    .brand .silueta{
+      width: 14px; height: 14px; background: var(--naranja); border-radius: 50%;
+      display:inline-block; position: relative; margin: 0 4px;
+    }
+    .brand .silueta::after{
+      content:''; position:absolute; width: 18px; height: 4px; background: var(--naranja);
+      top: -8px; left: -2px; border-radius: 2px; transform: rotate(-10deg);
+    }
+    .welcome{
+      color: var(--gris); font-size: 0.95rem; text-align: center;
+    }
+
+    .container{
+      margin: 20px auto; max-width: 920px; padding: 0 16px 40px;
+    }
+
+    .card{
+      background: #fff; border: 1px solid rgba(0,0,0,0.06);
+      border-radius: 18px; padding: 20px; box-shadow: 0 10px 24px rgba(0,0,0,0.06);
+    }
+
+    .menu{
+      display: grid; grid-template-columns: 1fr; gap: 16px; margin-top: 12px;
+    }
+    @media (min-width: 640px){
+      .menu{ grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .btn{
+      width: 100%; padding: 14px 16px; border-radius: 16px;
+      border: none; cursor: pointer; font-weight: 700; font-size: 1rem;
+      transition: transform .05s ease, box-shadow .2s ease;
+      display:flex; align-items:center; justify-content:center; gap:10px;
+    }
+    .btn:active{ transform: translateY(1px); }
+    .btn-primary{ background: var(--azul); color: #fff; }
+    .btn-primary:hover{ box-shadow: 0 8px 18px rgba(79,195,247,0.35); }
+    .btn-alt{ background: var(--azul); color: #fff; }
+    .btn-alt:hover{ box-shadow: 0 8px 18px rgba(2,136,209,0.35); }
+    .btn-back{
+      background: transparent; border: 2px solid var(--gris); color: var(--gris);
+      font-weight: 600;
+    }
+    .btn-back:hover{ box-shadow: 0 6px 14px rgba(0,0,0,0.08); }
+
+    .hidden{ display:none !important; }
+
+    form{
+      display: grid; grid-template-columns: 1fr; gap: 14px;
+    }
+    .row-2{ grid-template-columns: 1fr; }
+    @media (min-width: 640px){
+      .row-2{ grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    }
+
+    label{ font-weight: 600; font-size: 0.95rem; color:#172026; }
+    input[type="text"], input[type="email"], input[type="number"], select{
+      width: 100%; padding: 12px 12px; border-radius: 12px; border: 1px solid rgba(0,0,0,0.15);
+      font-size: 0.98rem; outline: none; background: #fff;
+    }
+    input::placeholder{ color: #a7a7a7; }
+
+    .actions{ display:flex; gap:12px; margin-top:6px; flex-wrap: wrap; }
+    .toast{
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(150%);
+      background: var(--ok); color: #fff; padding: 12px 16px; border-radius: 12px; font-weight: 700;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.2); opacity: 0; transition: all .35s ease;
+      z-index: 9999;
+    }
+    .toast.show{
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    .section-title{
+      font-size: 1.2rem; font-weight: 800; margin: 6px 0 12px;
+      color: #0d0f12;
+    }
+    .subtitle{ color: var(--gris); font-size: 0.9rem; margin-bottom: 10px; }
+    .divider{ height: 1px; background: rgba(0,0,0,0.06); margin: 8px 0 4px; }
+
+    .hint{ font-size: 0.82rem; color: var(--gris); }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="brand">
+      <span class="prototype">Prototype</span>
+      <span class="silueta" aria-hidden="true"></span>
+      <span class="gym">Gym</span>
+    </div>
+    <div class="welcome">¡Bienvenido! Gestiona nuevos usuarios y sus evaluaciones físicas.</div>
+  </header>
+
+  <div class="container">
+    <!-- MENÚ PRINCIPAL -->
+    <section id="view-menu" class="card">
+      <div class="section-title">¿Qué deseas hacer hoy?</div>
+      <div class="menu">
+        <button class="btn btn-primary" onclick="goTo('view-user')">Crear Usuario</button>
+        <button class="btn btn-alt" onclick="goTo('view-eval')">Evaluación Física</button>
+      </div>
+    </section>
+
+    <!-- FORM CREAR USUARIO -->
+    <section id="view-user" class="card hidden">
+      <div class="section-title">Crear Usuario</div>
+      <div class="subtitle">Completa los datos. Todos los campos son obligatorios.</div>
+      <div class="divider"></div>
+
+      <form id="form-user" onsubmit="submitUser(event)">
+        <div class="row-2">
+          <div>
+            <label>Nombre</label>
+            <input id="u-nombre" type="text" required
+              pattern="^[A-Za-z]+$" title="Solo letras, sin acentos ni espacios" />
+            <div class="hint">Se aceptan solo letras A-Z, sin tildes ni espacios.</div>
+          </div>
+          <div>
+            <label>Apellido</label>
+            <input id="u-apellido" type="text" required
+              pattern="^[A-Za-z]+$" title="Solo letras, sin acentos ni espacios" />
+            <div class="hint">Se aceptan solo letras A-Z, sin tildes ni espacios.</div>
+          </div>
+        </div>
+
+        <div class="row-2">
+          <div>
+            <label>Correo electrónico</label>
+            <input id="u-correo" type="email" required
+               />
+            <div class="hint">Formato válido: usuario@dominio.com</div>
+          </div>
+          <div>
+            <label>Ocupación</label>
+            <input id="u-ocupacion" type="text" required maxlength="50"
+              placeholder="Máx. 50 caracteres" />
+          </div>
+        </div>
+
+        <div>
+          <label>Sexo</label>
+          <select id="u-sexo" required>
+            <option value="" disabled selected>Selecciona...</option>
+            <option value="F">F</option>
+            <option value="M">M</option>
+          </select>
+        </div>
+
+        <div class="actions">
+          <button type="button" class="btn btn-back" onclick="goTo('view-menu')">Atrás</button>
+          <button type="submit" class="btn btn-primary">Enviar</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- FORM EVALUACIÓN FÍSICA -->
+    <section id="view-eval" class="card hidden">
+      <div class="section-title">Evaluación Física</div>
+      <div class="subtitle">Selecciona al usuario y completa su evaluación.</div>
+      <div class="divider"></div>
+
+      <form id="form-eval" onsubmit="submitEval(event)">
+        <div>
+          <label>Usuario</label>
+          <select id="e-usuario" required>
+            <option value="" disabled selected>Cargando usuarios...</option>
+          </select>
+          <div class="hint">Usuarios sin evaluar.</div>
+        </div>
+
+        <div class="row-2">
+          <div>
+            <label>Altura (cm)</label>
+            <input id="e-altura" type="text" inputmode="decimal" required
+              placeholder="Ej: 175.5 (usar punto decimal)" />
+          </div>
+          <div>
+            <label>Peso (kg)</label>
+            <input id="e-peso" type="text" inputmode="decimal" required
+              placeholder="Ej: 70.2 (usar punto decimal)" />
+          </div>
+        </div>
+
+        <div class="row-2">
+          <div>
+            <label>Objetivo</label>
+            <select id="e-objetivo" required>
+              <option value="" disabled selected>Selecciona...</option>
+              <option value="Ganar masa">Ganar masa</option>
+              <option value="Mantener forma">Mantener forma</option>
+              <option value="Perder grasa">Perder grasa</option>
+              <option value="Tonificar">Tonificar</option>
+            </select>
+          </div>
+          <div>
+            <label>Antecedentes de salud</label>
+            <select id="e-antecedentes" required>
+              <option value="" disabled selected>Selecciona...</option>
+              <option value="Asma">Asma</option>
+              <option value="Colesterol alto">Colesterol alto</option>
+              <option value="Diabetes tipo II">Diabetes tipo II</option>
+              <option value="Hipertensión">Hipertensión</option>
+              <option value="Hipotiroidismo">Hipotiroidismo</option>
+              <option value="Sin antecedentes">Sin antecedentes</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row-2">
+          <div>
+            <label>Nivel de entrenamiento</label>
+            <select id="e-nivel" required>
+              <option value="" disabled selected>Selecciona...</option>
+              <option value="Principiante">Principiante</option>
+              <option value="Intermedio">Intermedio</option>
+              <option value="Avanzado">Avanzado</option>
+            </select>
+          </div>
+          <div>
+            <label>Tiempo de entrenamiento (meses)</label>
+            <input id="e-tiempo" type="number" inputmode="numeric" required min="0" step="1"
+              placeholder="Ej: 6 (solo enteros)" />
+          </div>
+        </div>
+
+        <div class="row-2">
+          <div>
+            <label>Tipo metabólico</label>
+            <select id="e-tipo" required>
+              <option value="" disabled selected>Selecciona...</option>
+              <option value="Ectomorfo">Ectomorfo</option>
+              <option value="Endomorfo">Endomorfo</option>
+              <option value="Mesomorfo">Mesomorfo</option>
+            </select>
+          </div>
+          <div>
+            <label>Frecuencia de entrenamiento (por semana)</label>
+            <input id="e-frecuencia" type="number" inputmode="numeric" required min="0" step="1"
+              placeholder="Ej: 3 (solo enteros)" />
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="button" class="btn btn-back" onclick="goTo('view-menu')">Atrás</button>
+          <button type="submit" class="btn btn-alt">Enviar</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <!-- TOAST -->
+  <div id="toast" class="toast" role="status" aria-live="polite">¡Guardado con éxito!</div>
+
+  <script>
+    /** Navegación entre vistas */
+    function goTo(viewId){
+      ['view-menu','view-user','view-eval'].forEach(id=>{
+        document.getElementById(id).classList.toggle('hidden', id!==viewId);
+      });
+      if(viewId==='view-eval'){ loadEligibleUsers(); }
+    }
+
+    /** Utilidades UI */
+    function showToast(msg='¡Guardado con éxito!'){
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      setTimeout(()=> el.classList.remove('show'), 2200);
+    }
+    function clearForm(formId){
+      document.getElementById(formId).reset();
+    }
+
+    /** Sanitización frontend (nombres sin acentos ni espacios) */
+    function sanitizeName(str){
+      return (str || '')
+        .normalize('NFD').replace(/[\u0300-\u036f]/g,'') 
+        .replace(/\s+/g,'') 
+        .replace(/[^A-Za-z]/g,''); 
+    }
+    function isValidEmail(email){
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+    function toFloatOrNull(v){
+      if (typeof v !== 'string') return null;
+      const s = v.trim().replace(',', '.');
+      const n = parseFloat(s);
+      return isNaN(n) ? null : n;
+    }
+
+    /** Cargar usuarios elegibles en el dropdown de evaluación */
+    function loadEligibleUsers(){
+      const sel = document.getElementById('e-usuario');
+      sel.innerHTML = '<option value="" disabled selected>Cargando usuarios...</option>';
+      google.script.run
+        .withSuccessHandler(list=>{
+          sel.innerHTML = '<option value="" disabled selected>Selecciona un usuario...</option>';
+          (list || []).forEach(u=>{
+            const opt = document.createElement('option');
+            opt.value = u.id_persona;         
+            opt.textContent = u.display;      
+            sel.appendChild(opt);
+          });
+          if ((list || []).length === 0){
+            const opt = document.createElement('option');
+            opt.value = ''; opt.disabled = true; opt.selected = true;
+            opt.textContent = 'No hay usuarios elegibles';
+            sel.appendChild(opt);
+          }
+        })
+        .withFailureHandler(err=>{
+          sel.innerHTML = '<option value="" disabled selected>Error al cargar</option>';
+          console.error(err);
+        })
+        .getEligibleUsers();
+    }
+
+    /** Submit Crear Usuario */
+    function submitUser(e){
+      e.preventDefault();
+      const nombre = sanitizeName(document.getElementById('u-nombre').value);
+      const apellido = sanitizeName(document.getElementById('u-apellido').value);
+      const correo = (document.getElementById('u-correo').value || '').trim();
+      const ocupacion = (document.getElementById('u-ocupacion').value || '').trim().slice(0,50);
+      const sexo = document.getElementById('u-sexo').value;
+
+      if(!nombre || !apellido){
+        return showToast('Nombre y apellido: solo letras sin acentos ni espacios.');
+      }
+      if(!isValidEmail(correo)){
+        return showToast('Correo inválido. Revisa el formato.');
+      }
+      if(!sexo){ return showToast('Selecciona el sexo.'); }
+
+      const payload = { nombre, apellido, correo, ocupacion, sexo };
+      google.script.run
+        .withSuccessHandler(res=>{
+          showToast('Usuario guardado. ID: ' + res.id_persona);
+          clearForm('form-user');
+        })
+        .withFailureHandler(err=>{
+          console.error(err);
+          showToast('Error al guardar usuario.');
+        })
+        .submitUser(payload);
+    }
+
+    /** Submit Evaluación Física */
+    function submitEval(e){
+      e.preventDefault();
+      const id_persona = document.getElementById('e-usuario').value;
+
+      const altura_cm = toFloatOrNull(document.getElementById('e-altura').value);
+      const peso_kg = toFloatOrNull(document.getElementById('e-peso').value);
+      const objetivo = document.getElementById('e-objetivo').value;
+      const antecedentes_salud = document.getElementById('e-antecedentes').value;
+      const nivel_entrenamiento = document.getElementById('e-nivel').value;
+      const tiempo_entrenamiento = document.getElementById('e-tiempo').value;
+      const tipo_metabolico = document.getElementById('e-tipo').value;
+      const frecuencia_entrenamiento = document.getElementById('e-frecuencia').value;
+
+      // Validaciones frontend
+      if(!id_persona) return showToast('Selecciona un usuario.');
+      if(altura_cm===null || peso_kg===null) return showToast('Altura/Peso deben ser decimales con punto.');
+      if(!objetivo || !antecedentes_salud || !nivel_entrenamiento || !tipo_metabolico)
+        return showToast('Completa todas las selecciones.');
+      if(!/^\d+$/.test(String(tiempo_entrenamiento))) return showToast('Tiempo (meses) debe ser entero.');
+      if(!/^\d+$/.test(String(frecuencia_entrenamiento))) return showToast('Frecuencia/semana debe ser entero.');
+
+      const payload = {
+        id_persona, altura_cm, peso_kg, objetivo, antecedentes_salud,
+        nivel_entrenamiento, tiempo_entrenamiento, tipo_metabolico, frecuencia_entrenamiento
+      };
+
+      google.script.run
+        .withSuccessHandler(res=>{
+          showToast('Evaluación guardada. IMC: ' + res.imc);
+          clearForm('form-eval');
+          loadEligibleUsers(); 
+        })
+        .withFailureHandler(err=>{
+          console.error(err);
+          showToast('Error al guardar evaluación.');
+        })
+        .submitEval(payload);
+    }
+
+    document.addEventListener('DOMContentLoaded', ()=> {
+      goTo('view-menu');
+    });
+  </script>
+</body>
+</html>
